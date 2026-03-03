@@ -1,0 +1,21 @@
+{
+  "name": "Dominik",
+  "jobTitle": "Junior IT Specialist",
+  "skills": [
+    "HTML & CSS",
+    "JavaScript",
+    "PHP (Základy)",
+    "Git & GitHub"
+  ],
+  "interests": [
+    "Web development",
+    "Elektronika"
+  ],
+  "projects": [
+    {
+      "title": "Osobní IT profil",
+      "description": "Nyní poháněno pomocí PHP!",
+      "link": "#"
+    }
+  ]
+}
