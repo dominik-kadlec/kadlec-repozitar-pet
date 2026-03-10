@@ -54,3 +54,38 @@ button:hover { background-color: #004494; }
     border-radius: 5px;
     border: 1px solid #f5c6cb;
 }
+/* Nové styly pro IT Profil 5.0 - CRUD */
+.interest-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background-color: #fff;
+    padding: 10px 15px;
+    margin-bottom: 8px;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+}
+
+.interest-actions {
+    display: flex;
+    gap: 10px;
+}
+
+.btn-small {
+    padding: 5px 10px;
+    font-size: 0.9rem;
+    text-decoration: none;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+}
+
+.btn-edit { background-color: #ffc107; color: #000; }
+.btn-delete { background-color: #dc3545; color: #fff; }
+.btn-cancel { background-color: #6c757d; color: #fff; }
+
+.edit-form {
+    display: flex;
+    gap: 10px;
+    width: 100%;
+}
