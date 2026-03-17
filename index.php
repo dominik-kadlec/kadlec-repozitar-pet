@@ -1,90 +1,93 @@
 <?php
-// 1. Nastartování session pro PRG pattern (musí být úplně první!)
-session_start();
+session_start(); // PRG pattern - start session [cite: 322]
 
+// Připojení k databázi [cite: 280]
+$db = new PDO("sqlite:profile.db");
+$db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+
+// Načtení statických dat z JSON (jméno, dovednosti)
 $jsonFile = 'profile.json';
-$jsonData = file_get_contents($jsonFile);
-$data = json_decode($jsonData, true);
+$data = json_decode(file_get_contents($jsonFile), true);
 
-// 2. Zpracování POST požadavků (přidání, úprava, mazání)
+// Zpracování POST požadavků
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $action = $_POST['action'] ?? '';
 
-    // AKCE: PŘIDÁNÍ
+    // AKCE: PŘIDÁNÍ [cite: 286-287]
     if ($action === 'add') {
         $newInterest = trim($_POST["new_interest"] ?? '');
         if (empty($newInterest)) {
             $_SESSION['message'] = "Pole nesmí být prázdné.";
             $_SESSION['messageType'] = "error";
         } else {
-            $existingInterestsLower = array_map('strtolower', $data['interests']);
-            if (in_array(strtolower($newInterest), $existingInterestsLower)) {
+            // Kontrola duplicity bez ohledu na velká/malá písmena
+            $check = $db->prepare("SELECT COUNT(*) FROM interests WHERE LOWER(name) = LOWER(?)");
+            $check->execute([$newInterest]);
+            
+            if ($check->fetchColumn() > 0) {
                 $_SESSION['message'] = "Tento zájem už existuje.";
                 $_SESSION['messageType'] = "error";
             } else {
-                $data['interests'][] = $newInterest;
-                $_SESSION['message'] = "Zájem byl úspěšně přidán.";
+                $stmt = $db->prepare("INSERT INTO interests (name) VALUES (?)"); // [cite: 288-289]
+                $stmt->execute([$newInterest]); // [cite: 319-320]
+                $_SESSION['message'] = "Zájem byl přidán."; // [cite: 310]
                 $_SESSION['messageType'] = "success";
             }
         }
     } 
-    // AKCE: SMAZÁNÍ
+    // AKCE: SMAZÁNÍ [cite: 293-294]
     elseif ($action === 'delete') {
-        $index = $_POST['index'] ?? -1;
-        if (isset($data['interests'][$index])) {
-            unset($data['interests'][$index]); // Odstraní prvek
-            $data['interests'] = array_values($data['interests']); // Přečísluje pole
-            $_SESSION['message'] = "Zájem byl odstraněn.";
-            $_SESSION['messageType'] = "success";
-        }
+        $id = (int)$_POST['id'];
+        $stmt = $db->prepare("DELETE FROM interests WHERE id = ?"); // [cite: 295-296]
+        $stmt->execute([$id]);
+        $_SESSION['message'] = "Zájem byl odstraněn."; // [cite: 312]
+        $_SESSION['messageType'] = "success";
     }
-    // AKCE: ÚPRAVA
+    // AKCE: ÚPRAVA [cite: 297-298]
     elseif ($action === 'edit') {
-        $index = $_POST['index'] ?? -1;
+        $id = (int)$_POST['id'];
         $editedInterest = trim($_POST["edited_interest"] ?? '');
 
         if (empty($editedInterest)) {
             $_SESSION['message'] = "Pole nesmí být prázdné.";
             $_SESSION['messageType'] = "error";
         } else {
-            $existingInterestsLower = array_map('strtolower', $data['interests']);
-            $foundIndex = array_search(strtolower($editedInterest), $existingInterestsLower);
+            $check = $db->prepare("SELECT COUNT(*) FROM interests WHERE LOWER(name) = LOWER(?) AND id != ?");
+            $check->execute([$editedInterest, $id]);
             
-            // Kontrola duplicity (ignorujeme, pokud jsme našli ten samý prvek, který upravujeme)
-            if ($foundIndex !== false && $foundIndex != $index) {
+            if ($check->fetchColumn() > 0) {
                 $_SESSION['message'] = "Tento zájem už existuje.";
                 $_SESSION['messageType'] = "error";
             } else {
-                $data['interests'][$index] = $editedInterest;
-                $_SESSION['message'] = "Zájem byl upraven.";
+                $stmt = $db->prepare("UPDATE interests SET name = ? WHERE id = ?"); // [cite: 299-302]
+                $stmt->execute([$editedInterest, $id]);
+                $_SESSION['message'] = "Zájem byl upraven."; // [cite: 311]
                 $_SESSION['messageType'] = "success";
             }
         }
     }
 
-    // Uložení změn, pokud akce proběhla úspěšně
-    if (isset($_SESSION['messageType']) && $_SESSION['messageType'] === 'success') {
-        file_put_contents($jsonFile, json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
-    }
-
-    // 3. PRG Pattern: Přesměrování a ukončení skriptu
+    // PRG Pattern: Přesměrování [cite: 303-307]
     header("Location: index.php");
     exit;
 }
 
-// 4. Načtení hlášky ze session a její smazání
+// Načtení hlášek ze session [cite: 308-315]
 $message = $_SESSION['message'] ?? '';
 $messageType = $_SESSION['messageType'] ?? '';
 unset($_SESSION['message'], $_SESSION['messageType']);
 
-// Zjištění, který zájem zrovna upravujeme (přes GET parametr)
-$editIndex = $_GET['edit'] ?? -1;
+$editId = $_GET['edit'] ?? -1;
+
+// 1. Zobrazení zájmů - Načtení z databáze [cite: 282-283]
+$stmt = $db->query("SELECT * FROM interests");
+$interestsDb = $stmt->fetchAll(PDO::FETCH_ASSOC); // [cite: 321]
 ?>
 <!DOCTYPE html>
 <html lang="cs">
 <head>
     <meta charset="UTF-8">
-    <title>Osobní IT profil - CRUD</title>
+    <title>Osobní IT profil - SQLite</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -105,7 +108,7 @@ $editIndex = $_GET['edit'] ?? -1;
     </section>
 
     <section>
-        <h2>Zájmy</h2>
+        <h2>Zájmy (z databáze)</h2>
         
         <?php if (!empty($message)): ?>
             <p class="<?php echo htmlspecialchars($messageType); ?>">
@@ -116,28 +119,28 @@ $editIndex = $_GET['edit'] ?? -1;
         <form method="POST">
             <input type="hidden" name="action" value="add">
             <input type="text" name="new_interest" required placeholder="Napiš nový zájem...">
-            <button type="submit">Přidat zájem</button>
+            <button type="submit" class="btn-primary">Přidat zájem</button>
         </form>
 
         <ul>
-            <?php foreach ($data['interests'] as $index => $interest): ?>
+            <?php foreach ($interestsDb as $interest): ?>
                 <li class="interest-item">
-                    <?php if ($editIndex == $index): ?>
+                    <?php if ($editId == $interest['id']): ?>
                         <form method="POST" class="edit-form">
                             <input type="hidden" name="action" value="edit">
-                            <input type="hidden" name="index" value="<?php echo $index; ?>">
-                            <input type="text" name="edited_interest" value="<?php echo htmlspecialchars($interest); ?>" required>
+                            <input type="hidden" name="id" value="<?php echo $interest['id']; ?>">
+                            <input type="text" name="edited_interest" value="<?php echo htmlspecialchars($interest['name']); ?>" required>
                             <button type="submit" class="btn-small btn-edit">Uložit</button>
                             <a href="index.php" class="btn-small btn-cancel">Zrušit</a>
                         </form>
                     <?php else: ?>
-                        <span><?php echo htmlspecialchars($interest); ?></span>
+                        <span><?php echo htmlspecialchars($interest['name']); ?></span>
                         <div class="interest-actions">
-                            <a href="index.php?edit=<?php echo $index; ?>" class="btn-small btn-edit">Upravit</a>
+                            <a href="index.php?edit=<?php echo $interest['id']; ?>" class="btn-small btn-edit">Upravit</a>
                             
                             <form method="POST" style="margin: 0;">
                                 <input type="hidden" name="action" value="delete">
-                                <input type="hidden" name="index" value="<?php echo $index; ?>">
+                                <input type="hidden" name="id" value="<?php echo $interest['id']; ?>">
                                 <button type="submit" class="btn-small btn-delete">Smazat</button>
                             </form>
                         </div>
